@@ -1,4 +1,5 @@
    subroutine endrun
+         !print*, ltype(l)
    call abort
    return
    end
@@ -1154,29 +1155,61 @@ contains
                              0.,   0.,  50.,   0.,   0.,   0./)
 
   else if (num_landcover_types== 20.or. num_landcover_types==21) then !MODIS
+        
+        !DEFAULT CLM PFT LOOKUP TABLE
+        !plant(:,1) = (/1, 4,  3, 7,  1, 9,  9, 9, 14, 14, &
+        !               0, 15, 0, 15, 0, 11, 0, 2, 11, 11/)
+
+        !RE-CAST PFT TABLE 
+        !WATER = 12 (Cast to 0)
+        !17-20 cast to crop types
         plant(:,1) = (/1, 4,  3, 7,  1, 9,  9, 9, 14, 14, &
-                       0, 15, 0, 15, 0, 11, 0, 2, 11, 11/)
+                       0, 0, 0, 15, 15, 16, 17, 18, 19, 20/)
 
-        cover(:,1) = (/75., 95.,50.,  75., 37., 80., 50., 80., 70.,60.,&
-                       100.,85.,100., 50., 100.,10., 100.,13., 20.,10./)
+        !cover(:,1) = (/75., 95.,50.,  75., 37., 80., 50., 80., 70.,60.,&
+        !               100.,85.,100., 50., 100.,10., 100.,13., 20.,10./)
+ 
+        cover(:,1) = (/100., 100.,100., 100., 100., 100., 100., 100., 100.,100.,&
+                       100.,100.,100., 100., 100.,100., 100.,100., 100.,100./)
 
-        plant(:,2) = (/0, 0, 0, 0, 7, 0, 14, 0, 6, 13, &
-                       0, 0, 0, 14,0, 0, 0,  3, 12,12/)
 
-        cover(:,2) = (/25., 5., 50.,25.,37.,20.,30.,20.,30.,20.,&
-                       0.,  15.,0., 35.,0., 90.,0., 13.,20.,10./)
+
+        !plant(:,2) = (/0, 0, 0, 0, 7, 0, 14, 0, 6, 13, &
+        !               0, 0, 0, 14,0, 0, 0,  3, 12,12/)
+
+        plant(:,2) = (/0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
+                       0, 0, 0, 0,0, 0, 0,  0, 0, 0/)
+
+        !cover(:,2) = (/25., 5., 50.,25.,37.,20.,30.,20.,30.,20.,&
+        !              0.,  15.,0., 35.,0., 90.,0., 13.,20.,10./)
+
+        cover(:,2) = (/0., 0., 0.,0.,0.,0.,0.,0.,0.,0.,&
+                      0.,  0.,0., 0.,0., 0.,0., 0.,0.,0./)
+
 
         plant(:,3) = (/0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
-                       0, 0, 0, 0, 0, 0, 0,10, 0, 0/)
+                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0/)
 
-        cover(:,3) = (/0.,0.,0., 0., 26.,0., 20., 0., 0., 20.,&
-                       0.,0.,0., 15.,0., 0., 0., 24., 60.,80./)
+        !cover(:,3) = (/0.,0.,0., 0., 26.,0., 20., 0., 0., 20.,&
+        !              0.,0.,0., 15.,0., 0., 0., 24., 60.,80./)
+
+        cover(:,3) = (/0., 0., 0.,0.,0.,0.,0.,0.,0.,0.,&
+                      0.,  0.,0., 0.,0., 0.,0., 0.,0.,0./)
+
+
 
         plant(:,4) = (/0, 0, 0, 0, 0, 0, 0, 0, 0, 0, &
                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0/)
 
-        cover(:,4) = (/0.,0.,0.,0.,0.,0.,0.,0., 0.,0.,&
-                       0.,0.,0.,0.,0.,0.,0.,50.,0.,0./)
+        !cover(:,4) = (/0.,0.,0.,0.,0.,0.,0.,0., 0.,0.,&
+        !               0.,0.,0.,0.,0.,0.,0.,50.,0.,0./)
+
+        cover(:,4) = (/0., 0., 0.,0.,0.,0.,0.,0.,0.,0.,&
+                      0.,  0.,0., 0.,0., 0.,0., 0.,0.,0./)
+
+
+
+
   else
         write(6,*)'CLM works only for USGS (24) and MODIS(20) land use types,&
                  but the current number of land use types is ',num_landcover_types
@@ -3439,6 +3472,9 @@ end type model_dflux_type
 ! Begin definition of spatial scaling hierarchy
 !----------------------------------------------------
 
+!LOOKY
+
+
 !----------------------------------------------------
 ! define the pft structure
 !----------------------------------------------------
@@ -4102,6 +4138,16 @@ CONTAINS
       
   real(r8),dimension(maxpatch,1:num_soil_layers)   :: &
                          t_lake_buf, h2osoi_vol_buf
+
+  !IRRIGATION
+  real(r8),dimension(maxpatch,1:num_soil_layers)   :: &
+          dry_wat,fc_wat,wiltVol,new_h2o
+  real,Dimension(853)::latArray,lonArray
+  integer::row, max_rows,latfile,lonfile
+
+
+  real(r8):: Ulat,Llat,Llon,Rlon
+
   integer  :: lndmsk
 !------------------------------------------------------------------------
  real(r8),dimension(maxpatch) :: organic_buf
@@ -4278,6 +4324,11 @@ CONTAINS
  integer  :: myrs,mons,mdays,mhrs,mints,mscs,mtsecs
  integer  :: julyr,julday, julyr1,julday1
  integer  :: mbdate
+ !Irrigation addition
+ integer  :: p,s,irrigation,is_irr,beg_irr_mon,beg_irr_day,end_irr_mon
+ integer  :: end_irr_day
+ real     :: root_z
+ !===========================================
  integer  :: msec,msec1
  integer  :: ns
  real(r8) :: calday,calday1
@@ -4290,6 +4341,8 @@ CONTAINS
  real, dimension(4) :: lf_urb
  
 ! ----------------------------------------------------------------------
+
+
    call clm_varpar_mod(nlcat)
 
    call CLMDebug('Now in clmdrv')
@@ -4694,12 +4747,15 @@ CONTAINS
       dwt_livecrootn_to_cwdn_buf(m) = dwt_livecrootn_to_cwdn(i,m,j)
       dwt_deadcrootn_to_cwdn_buf(m) = dwt_deadcrootn_to_cwdn(i,m,j)
       retransn_buf(m)               = retransn(i,m,j)
+
+
+
 #endif
     end do !!!!!!!!!!!!!!!!! m=1, maxpatch
        
    !  if(lndmsk  == 1) then
 
-          call clm(forc_txy_buf        ,forc_uxy_buf           ,forc_vxy_buf    &
+     call clm(wiltVol,dry_wat,fc_wat,forc_txy_buf,forc_uxy_buf ,forc_vxy_buf    &
                   ,forc_qxy_buf        ,zgcmxy_buf             ,prec_buf        &
                   ,flwdsxy_buf         ,forc_sols_buf          ,forc_soll_buf   &
                   ,forc_solsd_buf      ,forc_solld_buf         ,forc_pbot_buf   &
@@ -4763,7 +4819,81 @@ CONTAINS
                 , dwt_livecrootn_to_cwdn_buf,dwt_deadcrootn_to_cwdn_buf,retransn_buf &                                                 
 #endif
                   )
+
+
+!=====================================================================================
+!
+!                       IRRIGATION AFTER CLM
+!
+!=====================================================================================
+
+                irrigation = 1 !1/0 = Irrigation ON/OFF
+                is_irr = 0 !Checks if gridcell irrigated based on lat/lon
+                beg_irr_mon = 5 !Beginning of irrigation season (month)
+                end_irr_mon = 9 !End of irrigation season (month)
+                root_z = 0 !Root depth (m)
+                max_rows = 316
+
+
+
+        if(irrigation==1) then                                   !IF IRRIGATED
+         if(mon >= beg_irr_mon.and.mon <=end_irr_mon) then       !IF IRRIGATED SEASON
+
+
+        !OPEN FILE TO READ LAT?LON OF IRRIGATED CELLS
+        OPEN(10, FILE='/work1/takle/trsines/WRF_CENTURY_CURRENT/phys/lat_00.txt')
+          DO row = 1,max_rows
+             READ(10,*) latArray(row)
+          END DO
+         CLOSE(10)
+        OPEN(10, FILE='/work1/takle/trsines/WRF_CENTURY_CURRENT/phys/lon_00.txt')
+          DO row = 1,max_rows
+             READ(10,*) lonArray(row)
+          END DO
+         CLOSE(10)
+
+        
+        !DETERMINE IF CURRENT CELL IS IRRIGATED
+            DO row = 1,max_rows
+              if(xlat(i,j)>=latArray(row)-0.5.AND.xlat(i,j)<=latArray(row)+0.5.AND.xlong(i,j)>=lonArray(row).AND.xlong(i,j)-0.5<=lonArray(row)+0.5) then
+
+                is_irr = 1 !IF IT IS IRRIGATED, SET FLAG TO 1
+                !print*,"lat/lon: ",xlat(i,j),xlong(i,j)
+
+              end if
+
+            END DO
+   
+
+        
+
+          if(is_irr == 1) then !CELL IS IRRIGATED
+
+                do p=1,maxpatch            !LOOP THROUGH PATCHES
+                  do s=1,num_soil_layers   !LOOP THROUGH SOIL LAYERS
+
+                 !GOAL SOIL MOISTURE IS 1/2 WAY BETWEEN WILTING AND FIELD
+                 !CAPACITY 
+                 new_h2o(p,s) = (wiltVol(p,s)+fc_wat(p,s))/2 
                  
+                 !CHECK IF SOIL LAYER MOISTURE HAS FALLEN BELOW GOAL
+                 if(h2osoi_vol_buf(p,s)<new_h2o(p,s)) then
+                        !IF IT HAS, IRRIGATE IT TO GOAL
+                        h2osoi_vol_buf(p,s)=new_h2o(p,s)        
+                 end if
+                 
+                  end do
+                end do
+
+          endif !is_irr
+         endif !mon
+        endif !irrigation
+                 
+
+!=======================================================================================================================
+
+
+
                  if(albxy_buf ==  1) albxy_buf = 0.991
 
                   albxy(i,j)          = albxy_buf
@@ -4815,7 +4945,9 @@ CONTAINS
                   else
                     qfx(i,j)          = lhxy_buf/hsub ! heat flux (W/m^2)=>mass flux(kg/(sm^2))     
                   end if
-                  
+                 
+                
+ 
                   qsfc(i,j)  = forc_qxy(i,1,j) +qfx(i,j)/(rhoxy_buf*chs(i,j))
 
               do m=1,maxpatch
@@ -6231,6 +6363,7 @@ contains
 
      ! Set special landunits
 
+
      do m = npatch_urban, npatch_glacier
         if (wtxy(g,m) > 0.0) ilunits = ilunits + 1
         if (wtxy(g,m) > 0.0) icols = icols + 1
@@ -6257,6 +6390,10 @@ contains
      if (present(wtveg))   wtveg   = wtvegl
      if (present(ncrop))   ncrop   = nvegc
      if (present(wtcrop))  wtcrop  = wtvegc
+
+
+
+
 
  end subroutine get_gcell_info
 
@@ -13476,6 +13613,7 @@ module pftvarcon
 !ylu add
 ! Set specific vegetation type values
 
+!BOOKMARK
 
 
   integer,parameter :: noveg                  = 0                 !value for not vegetated 
@@ -14536,6 +14674,8 @@ contains
     lptr => clm3%g%l
     cptr => clm3%g%l%c
     pptr => clm3%g%l%c%p
+    
+
 
     ! Get relevant sizes
 
@@ -14687,12 +14827,13 @@ contains
        
 		l = pptr%landunit(p)
 		c = pptr%column(p)
+
+ 
 #if (defined CNDV) || (! defined CROP)
 		if (lptr%itype(l) == istsoil) then ! CNDV incompatible with dynLU
 #else
 		if (lptr%itype(l) == istsoil .or. lptr%itype(l) == istcrop) then
 #endif
-
 			! calculate the change in weight for the timestep
 			dwt = pptr%wtcol(p)-wtcol_old(p)
 
@@ -16013,8 +16154,14 @@ contains
 	! calculate pft-to-column for fluxes into litter and CWD pools
 	do pi = 1,max_pft_per_col
 		do c = begc, endc
+                    
+
+
 			if ( pi <=  cptr%npfts(c) ) then
 				p = cptr%pfti(c) + pi - 1
+
+
+
 
 				! fine root litter carbon fluxes
 				cptr%ccf%dwt_frootc_to_litr1c(c) = cptr%ccf%dwt_frootc_to_litr1c(c) + &
@@ -16358,7 +16505,9 @@ subroutine CNHarvest (num_soilc, filter_soilc, num_soilp, filter_soilp)
    do fp = 1,num_soilp
       p = filter_soilp(fp)
       g = pgridcell(p)
-      
+     
+
+ 
       ! If this is a tree pft, then
       ! get the annual harvest "mortality" rate (am) from harvest array
       ! and convert to rate per second
@@ -17094,6 +17243,7 @@ contains
        fnl = 0
        do c = begc,endc
           l = clm3%g%l%c%landunit(c)
+
           if (clm3%g%l%lakpoi(l)) then
              fl = fl + 1
              filter%lakec(fl) = c
@@ -17112,6 +17262,8 @@ contains
        fnl = 0
        fnlu = 0
        do p = begp,endp
+
+
           if (clm3%g%l%c%p%wtgcell(p) > 0._r8) then
              l = clm3%g%l%c%p%landunit(p)
              if (clm3%g%l%lakpoi(l) ) then
@@ -17141,6 +17293,8 @@ contains
 #else
           if (clm3%g%l%itype(l) == istsoil .or. clm3%g%l%itype(l) == istcrop) then
 #endif
+
+           
              fs = fs + 1
              filter%soilc(fs) = c
           end if
@@ -17194,6 +17348,7 @@ contains
        f = 0
        do c = begc,endc
           l = clm3%g%l%c%landunit(c)
+          
 #ifndef CROP
           if (clm3%g%l%itype(l) == istsoil .or. ctype(c) == icol_road_perv ) then
 #else
@@ -17312,7 +17467,7 @@ end module filterMod
 ! !ROUTINE: iniTimeConst
 !
 ! !INTERFACE:
-subroutine iniTimeConst
+subroutine iniTimeConst(dry_wat,fc_wat)
 !
 ! !DESCRIPTION:
 ! Initialize time invariant clm variables
@@ -17326,7 +17481,7 @@ subroutine iniTimeConst
   use nanMod      , only : nan
   use clmtype
   use decompMod   , only : get_proc_bounds
-  use clm_varpar  , only : nlevsoi, nlevgrnd, nlevlak, lsmlon, lsmlat, numpft, numrad, nlevurb
+  use clm_varpar  , only : nlevsoi, nlevgrnd, nlevlak, lsmlon, lsmlat, numpft, numrad, nlevurb,maxpatch
   use clm_varcon  , only : istice, istdlak, istwet, isturb, &
                            icol_roof, icol_sunwall, icol_shadewall, icol_road_perv, icol_road_imperv, &
                            zlak, dzlak, zsoi, dzsoi, zisoi, spval
@@ -17434,6 +17589,10 @@ subroutine iniTimeConst
   integer  :: begc, endc       ! per-proc beginning and ending column indices
   integer  :: begl, endl       ! per-proc beginning and ending landunit indices
   integer  :: begg, endg       ! per-proc gridcell ending gridcell indices
+
+  real(r8),intent(out) :: dry_wat(maxpatch,nlevgrnd)
+  real(r8),intent(out) :: fc_wat(maxpatch,nlevgrnd)
+
 
 
   real(r8) :: om_frac                ! organic matter fraction
@@ -17802,7 +17961,10 @@ subroutine iniTimeConst
                csol(c,lev)= spval
             endif
             watdry(c,lev) = spval 
-            watopt(c,lev) = spval 
+            watopt(c,lev) = spval
+
+            dry_wat(c,lev) = watdry(c,lev)
+            fc_wat(c,lev) =  watfc(c,lev)
          end do
       else if (ltype(l)==isturb .and. (ctype(c) /= icol_road_perv) .and. (ctype(c) /= icol_road_imperv) )then
          ! Urban Roof, sunwall, shadewall properties set to special value
@@ -17820,7 +17982,11 @@ subroutine iniTimeConst
             tkdry(c,lev)  = spval
             csol(c,lev)   = spval
             watdry(c,lev) = spval 
-            watopt(c,lev) = spval 
+            watopt(c,lev) = spval
+
+            dry_wat(c,lev) = watdry(c,lev)
+            fc_wat(c,lev) =  watfc(c,lev)
+ 
          end do
       else  ! soil columns of both urban and non-urban types
          do lev = 1,nlevgrnd
@@ -17886,7 +18052,12 @@ subroutine iniTimeConst
             ! water content at field capacity, defined as hk = 0.1 mm/day
             ! used eqn (7.70) in CLM3 technote with k = 0.1 (mm/day) / 86400 (day/sec)
             watfc(c,lev) = watsat(c,lev) * (0.1_r8 / (hksat(c,lev)*86400._r8))**(1._r8/(2._r8*bsw(c,lev)+3._r8))
-         end do
+            dry_wat(c,lev) = watdry(c,lev)
+            fc_wat(c,lev) =  watfc(c,lev)
+
+
+
+            end do
          !
          ! Urban pervious and impervious road
          !
@@ -17894,7 +18065,10 @@ subroutine iniTimeConst
          if (ctype(c) == icol_road_imperv) then
             do lev = 1,nlevgrnd
                watdry(c,lev) = spval 
-               watopt(c,lev) = spval 
+               watopt(c,lev) = spval
+
+               dry_wat(c,lev) = watdry(c,lev)
+ 
             end do
          ! pervious road layers -- same as above except also set rootfr_road_perv
          ! Currently, pervious road has same properties as soil
@@ -17942,6 +18116,8 @@ subroutine iniTimeConst
     call CLMDebug('mark3')
    ! pft level initialization
    do p = begp, endp
+
+
 
       ! Initialize maximum allowed dew
 
@@ -18479,6 +18655,8 @@ contains
 !          pptr%londeg(pi) = longxy(i,j)
 !
           pptr%itype(pi) = vegxy(gi,m)
+
+
        end if ! non-zero weight for this pft
     end do ! loop through maxpatch_pft
 
@@ -19723,7 +19901,7 @@ contains
 ! !IROUTINE: VOCEmission
 !
 ! !INTERFACE:
-  subroutine VOCEmission (lbp, ubp, num_soilp, filter_soilp )
+  subroutine VOCEmission (wiltVol,mp,nlev,lbp, ubp, num_soilp, filter_soilp )
 !
 ! ! NEW DESCRIPTION
 ! Volatile organic compound emission
@@ -19775,6 +19953,11 @@ contains
     integer, intent(in) :: lbp, ubp                    ! pft bounds
     integer, intent(in) :: num_soilp                   ! number of columns in soil pft filter
     integer, intent(in) :: filter_soilp(num_soilp)     ! pft filter for soil
+    integer, intent(in) :: mp, nlev
+
+    real(r8), intent(out):: wiltVol(mp,nlev)
+
+
 !
 ! !CALLED FROM:
 !
@@ -20026,6 +20209,7 @@ contains
              !          Units: [ug C m-2 h-1] (convert input files from units of 
              !                 [ug isop m-2 h-1])
     	     epsilon(p) = 0._r8
+
 
              ! isoprenes:
              if (     ivt(p) == ndllf_evr_tmp_tree  &
@@ -20281,6 +20465,8 @@ contains
                    end if
 		   nl=nl+1._r8
                  end if
+
+                 wiltVol(c,j) = wilt
  	       end do 
 
 	       if (nl > 0) then
@@ -20524,6 +20710,9 @@ contains
       li = gptr%luni(g)
       lf = gptr%lunf(g)
       do l = li,lf   ! loop over land units  
+
+     
+
 
          ci = lptr%coli(l)
          cf = lptr%colf(l)
@@ -24094,6 +24283,8 @@ contains
 !                wtxy(g,m) = 1.0/maxpatch_pft * (100.-sumscl)/100.
 #else
                 vegxy(g,m) = pft(g,m)
+
+
                 wtxy(g,m) = pctpft_lunit(g,m) * (100.-sumscl)/10000.
 #endif
              end do
@@ -51076,6 +51267,7 @@ subroutine CropPhenology(num_pcropp, filter_pcropp)
          c = pcolumn(p)
          g = pgridcell(p)
 
+
          ! background litterfall and transfer rates; long growing season factor
 
          bglfr(p) = 0._r8 ! this value changes later in a crop's life cycle
@@ -51878,6 +52070,8 @@ subroutine CNOnsetGrowth (num_soilp, filter_soilp)
    do fp = 1,num_soilp
       p = filter_soilp(fp)
 
+
+
       ! only calculate these fluxes during onset period
       if (onset_flag(p) == 1._r8) then
 
@@ -51905,6 +52099,7 @@ subroutine CNOnsetGrowth (num_soilp, filter_soilp)
           end if
 !ylu add calculation on grainn_xfer_to_grainn,need to check with Sam
 #if (defined CROP)
+
       if (ivt(p) >= npcropmin) then 
              grainn_xfer_to_grainn(p) = t1 * grainn_xfer(p)
       end if
@@ -57489,7 +57684,7 @@ contains
 ! !IROUTINE: initialize
 !
 ! !INTERFACE:
-  subroutine initialize(snl    ,snowdp  ,dzclm     ,zclm        &
+  subroutine initialize(dry_wat,fc_wat,snl    ,snowdp  ,dzclm     ,zclm        &
                   ,ziclm       ,h2osno  ,h2osoi_liq,h2osoi_ice,t_grnd      &
                   ,t_soisno    ,t_lake  ,t_veg     ,h2ocan    ,h2ocan_col  &
                   ,h2osoi_vol  ,xlat    ,xlon      ,areaxy    ,iveg        &
@@ -57655,6 +57850,11 @@ contains
     real(r8)  :: zclm(maxpatch,-nlevsno+1:nlevgrnd)
     real(r8)  :: ziclm(maxpatch,-nlevsno:nlevgrnd)
     real(r8)  :: h2osoi_vol(maxpatch,nlevgrnd)
+    real(r8),intent(out)  :: dry_wat(maxpatch,nlevgrnd)
+    real(r8),intent(out)  :: fc_wat(maxpatch,nlevgrnd)
+
+
+
     real(r8)  :: snw_rdsx(maxpatch,-nlevsno+1:0)
 
     real(r8)  :: xlon
@@ -57766,7 +57966,7 @@ contains
     ! Initialize time constant variables
 
     call CLMDebug('call iniTimeConst')
-    call iniTimeConst()
+    call iniTimeConst(dry_wat,fc_wat)
 
 
     call mkarbinit(snl     ,snowdp, dzclm  ,zclm      ,&
@@ -57931,7 +58131,7 @@ contains
   end subroutine initialize
 
 end module initializeMod
-    subroutine clm(forc_txy        ,forc_uxy           ,forc_vxy      &
+    subroutine clm(wiltVol,dry_wat,fc_wat,forc_txy,forc_uxy,forc_vxy  &
                   ,forc_qxy        ,zgcmxy             ,precxy        &
                   ,flwdsxy         ,forc_solsxy        ,forc_sollxy   &
                   ,forc_solsdxy    ,forc_solldxy       ,forc_pbotxy   &
@@ -58153,6 +58353,9 @@ end module initializeMod
   real(r8)  :: zclm(maxpatch,-nlevsno+1:nlevgrnd)
   real(r8)  :: ziclm(maxpatch,-nlevsno:nlevgrnd)
   real(r8)  :: h2osoi_vol(maxpatch,nlevgrnd)
+  real(r8),intent(out)  :: dry_wat(maxpatch,nlevgrnd)
+  real(r8),intent(out)  :: fc_wat(maxpatch,nlevgrnd)
+  real(r8),intent(out)  :: wiltVol(maxpatch,nlevgrnd)
   real(r8)  :: snw_rdsxy(maxpatch,-nlevsno+1:0)
   real(r8)  :: t_ref2m(maxpatch)
 !New PFT-level output variables
@@ -58325,7 +58528,7 @@ end module initializeMod
     call CLMDebug('Start initialize()') 
 
    !  write(6,*) 'in clm3, t_soisno=',t_soisno
-    call  initialize(snl    ,snowdp  ,dzclm     ,zclm         &
+    call  initialize(dry_wat,fc_wat,snl    ,snowdp  ,dzclm     ,zclm         &
                   ,ziclm       ,h2osno  ,h2osoi_liq,h2osoi_ice,t_grnd      &
                   ,t_soisno    ,t_lake  ,t_veg     ,h2ocan    ,h2ocan_col  &
                   ,h2osoi_vol  ,xlat    ,xlon      ,areaxy    ,iveg        &
@@ -58484,7 +58687,7 @@ end module initializeMod
      ! non-land points and must be set by the appropriate surface model
 
      call CLMDebug('Calling Driver')
-     call driver (doalb,ilx,jlx,caldayp1, declinp1, declin)
+     call driver (wiltVol,maxpatch,nlevgrnd,doalb,ilx,jlx,caldayp1, declinp1, declin)
      call CLMDebug('Driver done, back to clm3.F')
 
 !-------------------------------------------------------------------------
@@ -58635,7 +58838,7 @@ end module initializeMod
 ! !ROUTINE: driver
 !
 ! !INTERFACE:
-subroutine driver (doalb,ilx,jlx,nextsw_cday, declinp1, declin)
+subroutine driver (wiltVol,mp,nlev,doalb,ilx,jlx,nextsw_cday, declinp1, declin)
 !
 ! !DESCRIPTION:
 ! This subroutine provides the main CLM driver calling sequence.  Most
@@ -58797,6 +59000,8 @@ subroutine driver (doalb,ilx,jlx,nextsw_cday, declinp1, declin)
   integer , pointer :: itypelun(:)  ! landunit type
 !
 ! !OTHER LOCAL VARIABLES:
+  integer,intent(in) :: mp, nlev
+  real(r8),intent(out):: wiltVol(mp,nlev)
 
 
   integer  :: ilx,jlx
@@ -59104,7 +59309,7 @@ subroutine driver (doalb,ilx,jlx,nextsw_cday, declinp1, declin)
 !     call VOCEmission(begp, endp, &
 !                      filter%num_nolakep, filter%nolakep)      !CLM3.5
      call CLMDebug('Begin VOCEmission')
-   call VOCEmission(begp, endp, &  
+   call VOCEmission(wiltVol,mp,nlev,begp, endp, &  
                       filter%num_soilp, filter%soilp)   !CLM4  !checked and modified according to CLM4
 !#endif
 

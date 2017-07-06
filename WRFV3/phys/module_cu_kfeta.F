@@ -627,7 +627,7 @@ CONTAINS
                  RELERR,RLC,RLS,RNC,FABEOLD,AINCOLD,UEFRC, &
                  DDFRC,TDC,DEFRC,RHBAR,DMFFRC,DPMIN,DILBE
    REAL    ::    ASTRT,TP,VALUE,AINTRP,TKEMAX,QFRZ,&
-                 QSS,PPTMLT,DTMELT,RHH,EVAC,BINC
+                 QSS,PPTMLT,DTMELT,RHH,EVAC,BINC,THEMIN
 !
       INTEGER :: INDLU,NU,NUCHM,NNN,KLFS
    REAL    :: CHMIN,PM15,CHMAX,DTRH,RAD,DPPP
@@ -647,7 +647,9 @@ CONTAINS
                  LTOPM1,LVF,KSTART,KMIN,LFS,               &
                  ND,NIC,LDB,LDT,ND1,NDK,                   &
                  NM,LMAX,NCOUNT,NOITR,                     &
-                 NSTEP,NTC,NCHM,ISHALL,NSHALL
+                 NSTEP,NTC,NCHM,ISHALL,NSHALL,LEV,LOUT,    &
+                 THEMINLEV 
+
       LOGICAL :: IPRNT
       REAL :: u00,qslcl,rhlcl,dqssdt    !jfb
       CHARACTER*1024 message
@@ -656,7 +658,8 @@ CONTAINS
       DATA RLF/3.339E5/
       DATA RHIC,RHBC/1.,0.90/
       DATA PIE,TTFRZ,TBFRZ,C5/3.141592654,268.16,248.16,1.0723E-3/
-      DATA RATE/0.03/   ! wrf default
+!===================================================================
+      DATA RATE/0.0001/   !New AutoConversion Rate 
 !      DATA RATE/0.01/  ! value used in NRCM
 !      DATA RATE/0.001/  ! effectively turn off autoconversion
 !-----------------------------------------------------------
@@ -1253,7 +1256,8 @@ updraft:    DO NK=K,KL-1
 !     
 !...LTOP IS THE MODEL LEVEL JUST BELOW THE LEVEL AT WHICH VERTICAL VELOCITY
 !   FIRST BECOMES NEGATIVE...
-!     
+!    
+ 
             LTOP=NK
             CLDHGT(LC)=Z0(LTOP)-ZLCL 
 !
@@ -1352,7 +1356,38 @@ updraft:    DO NK=K,KL-1
 !     
 !...IF THE LET AND LTOP ARE THE SAME, DETRAIN ALL OF THE UPDRAFT MASS FL
 !   THIS LEVEL...
-!     
+!
+
+   
+!============================================================================
+!                               MOD KF
+!============================================================================
+
+        LEV = 0
+        THEMIN = 99999.
+        THEMINLEV = 0
+        LOUT = 0
+
+        DO LEV = LCL+1,LTOP
+           IF(THETEE(LEV).LE.THEMIN) THEN
+              THEMIN = THETEE(LEV)
+              THEMINLEV = LEV
+           END IF
+        END DO
+
+        LOUT = THEMINLEV
+
+        IF(ML.GT.LCL) THEN
+           IF(ML.LT.LOUT) THEN
+                LOUT = ML
+           END IF
+        END IF
+
+         LET = LOUT
+
+
+
+  
     IF(LET.EQ.LTOP)THEN
       UDR(LTOP)=UMF(LTOP)+UDR(LTOP)-UER(LTOP)
       DETLQ(LTOP)=QLIQ(LTOP)*UDR(LTOP)*UPNEW/UPOLD
@@ -1365,9 +1400,14 @@ updraft:    DO NK=K,KL-1
 !     
       DPTT=0.
       DO NJ=LET+1,LTOP
-        DPTT=DPTT+DP(NJ)
+ 
+        DPTT= DPTT+LOG(DP(NJ))      !DPTT+DP(NJ)
+        
       ENDDO
       DUMFDP=UMF(LET)/DPTT
+
+
+
 !     
 !...ADJUST MASS FLUX PROFILES, DETRAINMENT RATES, AND PRECIPITATION FALL
 !   RATES TO REFLECT THE LINEAR DECREASE IN MASS FLX BETWEEN THE LET AND
@@ -1386,7 +1426,7 @@ updraft:    DO NK=K,KL-1
           DETLQ(NK) = UDR(NK)*QLIQ(NK)*DILFRC(NK)
           DETIC(NK) = UDR(NK)*QICE(NK)*DILFRC(NK)
         ELSE
-          UMF(NK)=UMF(NK-1)-DP(NK)*DUMFDP
+          UMF(NK)=UMF(NK-1)-LOG(DP(NK))*DUMFDP
           UER(NK)=UMF(NK)*(1.-1./DILFRC(NK))
           UDR(NK)=UMF(NK-1)-UMF(NK)+UER(NK)
           DETLQ(NK)=UDR(NK)*QLIQ(NK)*DILFRC(NK)
