@@ -7,6 +7,7 @@ call me with the year, duh
 """
 from __future__ import print_function
 import sys
+import os
 import subprocess
 
 NAMELIST_TEMPLATE = """
@@ -68,6 +69,10 @@ def main(argv):
     print("   calling metgrid")
     subprocess.call("./metgrid.exe >& metgrid_%s.log" % (year,), shell=True)
     # Run geogrid, no
+    # Move files to larger storage, please
+    print("   moving files to /mnt/nrel...")
+    os.makedirs("/mnt/nrel/acaruthe/wrf_runs/input_files/%s" % (year, ))
+    subprocess.call("mv met_em*nc /mnt/nrel/acaruthe/wrf_runs/input_files/%s" % (year, ), shell=True)
     print("We are done with year %s" %  (year, ))
 
 
