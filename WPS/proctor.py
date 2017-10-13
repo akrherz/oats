@@ -71,8 +71,10 @@ def main(argv):
     # Run geogrid, no
     # Move files to larger storage, please
     print("   moving files to /mnt/nrel...")
-    os.makedirs("/mnt/nrel/acaruthe/wrf_runs/input_files/%s" % (year, ))
-    subprocess.call("mv met_em*nc /mnt/nrel/acaruthe/wrf_runs/input_files/%s" % (year, ), shell=True)
+    mydir = "/mnt/nrel/acaruthe/wrf_runs/input_files/%s" % (year, )
+    if not os.path.isdir(mydir):
+        os.makedirs(mydir)
+    subprocess.call("mv met_em*nc %s" % (mydir,), shell=True)
     print("We are done with year %s" %  (year, ))
 
 
