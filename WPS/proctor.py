@@ -56,7 +56,7 @@ def main(argv):
     print("We are running for the year of %s" % (year, ))
     # Run link_grib.csh
     print("   calling link_grib")
-    cmd = "./link_grib.csh /mnt/nrel/akrherz/ERA_T255/*.%s0101??" % (year,)
+    cmd = "./link_grib.csh /mnt/nrel/akrherz/ERA_T255/*.%s??????" % (year,)
     subprocess.call(cmd, shell=True)
     # Edit namelist
     fp = open("namelist.wps", 'w')
