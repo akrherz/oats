@@ -21,5 +21,6 @@ def main():
         row = cursor.fetchone()
         print("%s %s" % (line.strip(), row[0]))
 
+
 if __name__ == '__main__':
     main()
